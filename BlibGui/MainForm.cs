@@ -85,6 +85,7 @@ namespace BlibGui
 
             protected override void Sleep()
             {
+                Thread.Sleep(100);
                 Application.DoEvents();
             }
         }
