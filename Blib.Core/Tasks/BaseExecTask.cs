@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace Blib.Tasks
 {
@@ -56,6 +57,7 @@ namespace Blib.Tasks
 
 
             StreamReader reader = process.StandardOutput;
+
             string line;
             while ((line = reader.ReadLine()) != null)
             {
@@ -71,6 +73,11 @@ namespace Blib.Tasks
             while ((line = reader.ReadLine()) != null)
             {
                 Log(LogLevel.Error, line);
+            }
+
+            while (!process.HasExited)
+            {
+                Thread.Sleep(10);
             }
 
             if (process.ExitCode != 0)
