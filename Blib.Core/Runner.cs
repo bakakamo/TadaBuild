@@ -170,6 +170,10 @@ namespace Blib
                 AddLogger(logger);
             }
 
+#if DEBUG
+            Log(LogLevel.Warning, "Running Blib in debug mode!");
+#endif
+
             if (!string.IsNullOrEmpty(_options.ExecuteBefore))
             {
                 Log(LogLevel.Info, "Executing the \"before\" command...");

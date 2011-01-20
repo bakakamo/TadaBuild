@@ -64,7 +64,7 @@ namespace Blib.Tasks
                 _output.AppendLine(line);
                 Log(LogLevel.Info, line);
             }
-            if (_output.Length > Environment.NewLine.Length)
+            if (_output.Length > Environment.NewLine.Length)  
             {
                 _output.Length -= Environment.NewLine.Length;
             }
