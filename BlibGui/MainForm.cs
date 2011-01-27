@@ -467,9 +467,21 @@ namespace BlibGui
 
         private void tvTargets_AfterCheck(object sender, TreeViewEventArgs e)
         {
-            foreach (TreeNode node in e.Node.Nodes)
+            if (e.Action != TreeViewAction.Unknown)
             {
-                node.Checked = e.Node.Checked;
+                foreach (TreeNode node in e.Node.Nodes)
+                {
+                    node.Checked = e.Node.Checked;
+                }
+                if (e.Node.Checked)
+                {
+                    TreeNode parentNode = e.Node.Parent;
+                    while (parentNode != null)
+                    {
+                        parentNode.Checked = true;
+                        parentNode = parentNode.Parent;
+                    }
+                }
             }
         }
 
