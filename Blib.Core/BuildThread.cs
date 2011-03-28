@@ -148,6 +148,12 @@ namespace Blib
 
         public void Enqueue(ExecutableElement element)
         {
+            if (!_success)
+            {
+                element.Cancel();
+                return;
+            }
+
             lock (_elementsSyncRoot)
             {
                 _elements.Enqueue(element);
