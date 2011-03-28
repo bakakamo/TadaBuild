@@ -82,7 +82,7 @@ namespace Blib
                         }
                     }
 
-                    if (!dependency.Success)
+                    if (!dependency.Success && (!(dependency is Target) || ((Target)dependency).Enabled))
                     {
                         throw new BuildDependencyException(string.Format("Required dependency \"{0}\" was not executed successfully!", dependency.Name));
                     }
