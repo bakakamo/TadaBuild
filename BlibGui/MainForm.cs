@@ -207,6 +207,8 @@ namespace BlibGui
                                 {
                                     NumericUpDown upDown = new NumericUpDown();
                                     upDown.DecimalPlaces = 0;
+                                    upDown.Minimum = decimal.MinValue;
+                                    upDown.Maximum = decimal.MaxValue;
                                     upDown.Value = (int)currentValue;
                                     control = upDown;
                                 }
