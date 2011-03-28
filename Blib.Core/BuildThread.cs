@@ -96,6 +96,24 @@ namespace Blib
                 }
                 finally
                 {
+                    if (!_success)
+                    {
+                        ExecutableElement element = null;
+                        do
+                        {
+                            lock (_elementsSyncRoot)
+                            {
+                                element = _elements.Count > 0 ? _elements.Dequeue() : null;
+                            }
+
+                            if (element != null)
+                            {
+                                element.Cancel();
+                            }
+
+                        } while (element != null);
+                    }
+
                     _runner.Sleep(this, notified);
                 }
             }

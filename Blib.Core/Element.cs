@@ -239,6 +239,13 @@ namespace Blib
             _finishedEvent.WaitOne();
         }
 
+        internal void Cancel()
+        {
+            _success = false;
+            _executed = true;
+            _finishedEvent.Set();
+        }
+
         internal BuildThread InternalThread
         {
             get { return _thread ?? (_parent is ExecutableElement ? null : ((ExecutableElement)_parent).InternalThread); }
