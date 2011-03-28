@@ -78,12 +78,13 @@ namespace Blib
                             {
                                 Log(LogLevel.Info, "Waiting for \"{0}\"...", dependency.Name);
                                 dependency.Wait();
-                                if (!dependency.Success)
-                                {
-                                    throw new BuildDependencyException(string.Format("Required dependency \"{0\" was not executed successfully!", dependency.Name));
-                                }
                             }
                         }
+                    }
+
+                    if (!dependency.Success)
+                    {
+                        throw new BuildDependencyException(string.Format("Required dependency \"{0\" was not executed successfully!", dependency.Name));
                     }
                 }
             } while (dependency != null);
