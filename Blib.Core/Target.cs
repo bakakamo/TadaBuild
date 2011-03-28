@@ -84,7 +84,7 @@ namespace Blib
 
                     if (!dependency.Success)
                     {
-                        throw new BuildDependencyException(string.Format("Required dependency \"{0\" was not executed successfully!", dependency.Name));
+                        throw new BuildDependencyException(string.Format("Required dependency \"{0}\" was not executed successfully!", dependency.Name));
                     }
                 }
             } while (dependency != null);
