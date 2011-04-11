@@ -59,9 +59,14 @@ namespace Blib.Types
             pattern = pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
             string fullPattern = GetFullPath(pattern);
             int wildcardIndex = fullPattern.IndexOf('*');
+            bool foundSomething = false;
             if (wildcardIndex < 0)
             {
-                _files[fullPattern] = 1;
+                if (System.IO.File.Exists(fullPattern))
+                {
+                    foundSomething = true;
+                    _files[fullPattern] = 1;
+                }
             }
             else
             {
@@ -85,10 +90,16 @@ namespace Blib.Types
                     {
                         if (regex.IsMatch(path))
                         {
+                            foundSomething = true;
                             _files[path] = 1;
                         }
                     }
                 }
+            }
+
+            if (!foundSomething)
+            {
+                throw new BuildException(string.Format("Did not find anything to include with pattern \"{0}\"!", pattern));
             }
         }
 
