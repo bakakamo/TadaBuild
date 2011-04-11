@@ -19,6 +19,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net.Mail;
 using System.Threading;
+using System.IO;
+using ICSharpCode.SharpZipLib.Zip;
 
 namespace Blib.Loggers
 {
@@ -67,22 +69,47 @@ namespace Blib.Loggers
         {
             base.Finish(success);
 
-            StringBuilder output = new StringBuilder();
+            StringBuilder mainOutput = new StringBuilder();
 
-            lock (_buildersSyncRoot)
+            MemoryStream contentStream = new MemoryStream();
+            ZipOutputStream zipStream = new ZipOutputStream(contentStream);
+            zipStream.SetLevel(9);
+
+            lock (SyncRoot)
             {
-                foreach (var builder in _builders)
+                foreach (var output in Outputs)
                 {
-                    output.Append(builder);
+                    StringBuilder text = (StringBuilder)output.Value.Key;
+                    if (output.Key == RunnerThread)
+                    {
+                        mainOutput.Append(text);
+                    }
+                    else
+                    {
+                        ZipEntry zipEntry = new ZipEntry(output.Key.Name + (UseHtml ? ".html" : ".log"));
+                        zipStream.PutNextEntry(zipEntry);
+
+                        byte[] buffer = Encoding.UTF8.GetBytes(text.ToString());
+                        zipStream.Write(buffer, 0, buffer.Length);
+                    }
                 }
             }
 
             MailMessage message = new MailMessage(From, To);
             message.Subject = success ? "Build successful" : "Build failed!";
             message.IsBodyHtml = UseHtml;
-            message.Body = output.ToString();
+            message.Body = mainOutput.ToString();
+
+            // log files
+            zipStream.Finish();
+            contentStream.Position = 0;
+            Attachment attachment = new Attachment(contentStream, "logs.zip");
+            message.Attachments.Add(attachment);
+
             SmtpClient smtpClient = new SmtpClient(SmtpHost, SmtpPort);
             smtpClient.Send(message);
+
+            zipStream.Close();
         }
 
         #endregion

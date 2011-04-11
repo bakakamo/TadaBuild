@@ -95,6 +95,21 @@ namespace Blib.Loggers
 
         protected abstract KeyValuePair<object, AppendOutputDelegate> CreateOutput(BuildThread thread);
 
+        protected Dictionary<Thread, KeyValuePair<object, AppendOutputDelegate>> Outputs
+        {
+            get { return _outputs; }
+        }
+
+        protected object SyncRoot
+        {
+            get { return _syncRoot; }
+        }
+
+        protected Thread RunnerThread
+        {
+            get { return _runnerThread; }
+        }
+
         #endregion
 
         #region public members

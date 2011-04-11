@@ -166,6 +166,25 @@ namespace Blib.Tasks.IO
             new MoveTask(file) { ToFile = toFile, Overwrite = overwrite, FailOnError = failOnError }.Execute();
         }
 
+        public static string NewTempDir(bool createDirectory = true, string parentDirectory = null)
+        {
+            if (string.IsNullOrEmpty(parentDirectory))
+            {
+                parentDirectory = System.IO.Path.GetTempPath();
+            }
+            string result;
+            do
+            {
+                result = System.IO.Path.Combine(parentDirectory, System.IO.Path.GetRandomFileName());
+            } while (System.IO.Directory.Exists(result));
+
+            if (createDirectory)
+            {
+                System.IO.Directory.CreateDirectory(result);
+            }
+            return result;
+        }
+
         #endregion
     }
 }
