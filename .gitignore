@@ -5,3 +5,4 @@ obj
 *.user
 *.pdb
 /Bin/BlibGui.vshost.exe
+/Bin
