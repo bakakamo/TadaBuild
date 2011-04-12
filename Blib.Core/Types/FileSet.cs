@@ -97,7 +97,7 @@ namespace Blib.Types
                 }
             }
 
-            if (!foundSomething)
+            if (!foundSomething && !IgnoreEmptyPatterns)
             {
                 throw new BuildException(string.Format("Did not find anything to include with pattern \"{0}\"!", pattern));
             }
@@ -169,6 +169,12 @@ namespace Blib.Types
             _items.Add(new KeyValuePair<string, bool>(pattern, false));
         }
 
+        public bool IgnoreEmptyPatterns
+        {
+            get;
+            set;
+        }
+
         public bool IsEmpty
         {
             get
@@ -195,6 +201,7 @@ namespace Blib.Types
 
         public void Delete(LogLevel? logLevel = null)
         {
+            IgnoreEmptyPatterns = true;
             DeleteTask delete = new DeleteTask(this);
             if (logLevel.HasValue)
             {
