@@ -22,6 +22,20 @@ using Blib.Tasks.IO;
 
 namespace Blib.Types
 {
+    public class FileSetPattern
+    {
+        public FileSetPattern(string pattern, bool include, bool ignoreEmpty)
+        {
+            Pattern = pattern;
+            Include = include;
+            IgnoreEmpty = ignoreEmpty;
+        }
+
+        public string Pattern;
+        public bool Include;
+        public bool IgnoreEmpty;
+    }
+
     public class FileSet : BaseFileSet, IEnumerable<string>
     {
         #region private members
@@ -29,7 +43,7 @@ namespace Blib.Types
         private static string RegexDirSeparator = Regex.Escape(System.IO.Path.DirectorySeparatorChar.ToString());
 
         private Dictionary<string, byte> _files;
-        private List<KeyValuePair<string, bool>> _items = new List<KeyValuePair<string, bool>>();
+        private List<FileSetPattern> _items = new List<FileSetPattern>();
 
         private static readonly Regex PatternRegex = new Regex(@"\*\*" + RegexDirSeparator + @"|\*|[^\*]+");
 
@@ -43,21 +57,21 @@ namespace Blib.Types
             _files = new Dictionary<string, byte>(StringComparer.CurrentCultureIgnoreCase);
             foreach (var item in _items)
             {
-                if (item.Value)
+                if (item.Include)
                 {
-                    IncludeFiles(item.Key);
+                    IncludeFiles(item);
                 }
                 else
                 {
-                    ExcludeFiles(item.Key);
+                    ExcludeFiles(item);
                 }
             }
         }
 
-        private void IncludeFiles(string pattern)
+        private void IncludeFiles(FileSetPattern pattern)
         {
-            pattern = pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
-            string fullPattern = GetFullPath(pattern);
+            string patternStr = pattern.Pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
+            string fullPattern = GetFullPath(patternStr);
             int wildcardIndex = fullPattern.IndexOf('*');
             bool foundSomething = false;
             if (wildcardIndex < 0)
@@ -82,7 +96,7 @@ namespace Blib.Types
                     throw new BuildException("Including files in a filset using the root of the filesystem as root!");
                 }
 
-                string name = System.IO.Path.GetFileName(pattern);
+                string name = System.IO.Path.GetFileName(patternStr);
                 Regex regex = GetRegex(fullPattern);
                 if (System.IO.Directory.Exists(rootPath))
                 {
@@ -97,16 +111,16 @@ namespace Blib.Types
                 }
             }
 
-            if (!foundSomething && !IgnoreEmptyPatterns)
+            if (!foundSomething && !IgnoreEmptyPatterns && !pattern.IgnoreEmpty)
             {
-                throw new BuildException(string.Format("Did not find anything to include with pattern \"{0}\"!", pattern));
+                throw new BuildException(string.Format("Did not find anything to include with pattern \"{0}\"!", patternStr));
             }
         }
 
-        private void ExcludeFiles(string pattern)
+        private void ExcludeFiles(FileSetPattern pattern)
         {
-            pattern = pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
-            Regex regex = GetRegex(GetFullPath(pattern));
+            string patternStr = pattern.Pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
+            Regex regex = GetRegex(GetFullPath(patternStr));
             List<string> remove = new List<string>();
             foreach (var path in _files.Keys)
             {
@@ -159,14 +173,14 @@ namespace Blib.Types
 
         #region public members
 
-        public void Include(string pattern)
+        public void Include(string pattern, bool ignoreEmpty = false)
         {
-            _items.Add(new KeyValuePair<string, bool>(pattern, true));
+            _items.Add(new FileSetPattern(pattern, true, ignoreEmpty));
         }
 
-        public void Exclude(string pattern)
+        public void Exclude(string pattern, bool ignoreEmpty = false)
         {
-            _items.Add(new KeyValuePair<string, bool>(pattern, false));
+            _items.Add(new FileSetPattern(pattern, false, ignoreEmpty));
         }
 
         public bool IgnoreEmptyPatterns
@@ -188,7 +202,7 @@ namespace Blib.Types
         {
             get
             {
-                return _items.Count == 1 && _items[0].Value && !_items[0].Key.Contains("*");
+                return _items.Count == 1 && _items[0].Include && !_items[0].Pattern.Contains("*");
             }
         }
 
