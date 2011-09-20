@@ -16,13 +16,14 @@
 // along with Blib.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Blib.Tasks.IO;
 
 namespace Blib.Types
 {
-    public class FileSet : BaseFileSet
+    public class PathSet : BaseFileSet
     {
         #region protected members
 
@@ -34,7 +35,7 @@ namespace Blib.Types
             bool foundSomething = false;
             if (wildcardIndex < 0)
             {
-                if (System.IO.File.Exists(fullPattern))
+                if (System.IO.File.Exists(fullPattern) || System.IO.Directory.Exists(fullPattern))
                 {
                     foundSomething = true;
                     _paths[fullPattern] = 1;
@@ -51,14 +52,14 @@ namespace Blib.Types
                 // check for mistakes, for example by doing Include("/*")
                 if (IO.IsFileSystemRoot(rootPath))
                 {
-                    throw new BuildException("Including files in a filset using the root of the filesystem as root!");
+                    throw new BuildException("Including paths in a PathSet using the root of the filesystem as root!");
                 }
 
                 string name = System.IO.Path.GetFileName(patternStr);
                 Regex regex = GetRegex(fullPattern);
                 if (System.IO.Directory.Exists(rootPath))
                 {
-                    foreach (string path in System.IO.Directory.GetFiles(rootPath, name, System.IO.SearchOption.AllDirectories))
+                    foreach (string path in System.IO.Directory.GetFileSystemEntries(rootPath, name, System.IO.SearchOption.AllDirectories))
                     {
                         if (regex.IsMatch(path))
                         {
@@ -95,22 +96,11 @@ namespace Blib.Types
             set;
         }
 
-        public static implicit operator FileSet(string filename)
+        public static implicit operator PathSet(string path)
         {
-            FileSet result = new FileSet();
-            result.Include(filename);
+            PathSet result = new PathSet();
+            result.Include(path);
             return result;
-        }
-
-        public void Delete(LogLevel? logLevel = null)
-        {
-            IgnoreEmptyPatterns = true;
-            DeleteTask delete = new DeleteTask(this);
-            if (logLevel.HasValue)
-            {
-                delete.LogLevel = logLevel.Value;
-            }
-            delete.Execute();
         }
 
         #endregion

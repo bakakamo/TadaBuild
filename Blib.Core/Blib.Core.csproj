@@ -69,6 +69,7 @@
     <Compile Include="Tasks\IO\MoveTask.cs" />
     <Compile Include="Tasks\XmlPeekTask.cs" />
     <Compile Include="Tasks\XmlPokeTask.cs" />
+    <Compile Include="Tools\Delegates.cs" />
     <Compile Include="Tools\Enumerable.cs" />
     <Compile Include="Types\BaseDirSet.cs" />
     <Compile Include="Types\BaseFileSet.cs" />
@@ -77,6 +78,7 @@
     <Compile Include="Types\DirSet.cs" />
     <Compile Include="Types\FilePath.cs" />
     <Compile Include="Types\FileSet.cs" />
+    <Compile Include="Types\PathSet.cs" />
     <Compile Include="Validators.cs" />
   </ItemGroup>
   <ItemGroup />

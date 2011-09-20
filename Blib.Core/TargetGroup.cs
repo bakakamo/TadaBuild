@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -86,6 +86,7 @@ namespace Blib
         {
             foreach (Target target in _targets)
             {
+                Runner.CheckThreadFailed();
                 if (target.Thread != null)
                 {
                     target.Thread.Enqueue(target);

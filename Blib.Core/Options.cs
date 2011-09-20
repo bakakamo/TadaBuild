@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -61,6 +61,8 @@ namespace Blib
 
         public void Parse(string[] args)
         {
+            string workingDir = Environment.CurrentDirectory;
+
             string configurationFile = null;
 
             bool startParsing = true;
@@ -126,10 +128,10 @@ namespace Blib
                                     }
                                     break;
                                 case "--assembly":
-                                    DllFilename = Unquote(value);
+                                    DllFilename = Path.Combine(workingDir, Unquote(value));
                                     break;
                                 case "--project-file":
-                                    ProjectFilename = Unquote(value);
+                                    ProjectFilename = Path.Combine(workingDir, Unquote(value));
                                     break;
                                 case "--buildfile":
                                     if (configurationFile == null)
@@ -170,9 +172,11 @@ namespace Blib
 
         public void LoadFromFile(string filename)
         {
-            BuildFile = filename;
+            string workingDir = Environment.CurrentDirectory;
 
-            string rootPath = Path.GetDirectoryName(filename);
+            BuildFile = Path.Combine(workingDir, filename);
+
+            string rootPath = Path.GetDirectoryName(BuildFile);
 
             XmlDocument xml = new XmlDocument();
             xml.Load(filename);

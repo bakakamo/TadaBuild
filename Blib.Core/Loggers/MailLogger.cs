@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -31,29 +31,35 @@ namespace Blib.Loggers
             SmtpPort = 25;
         }
 
-        #region private members
+        #region nested types
 
-        private List<StringBuilder> _builders = new List<StringBuilder>();
-        private object _buildersSyncRoot = new object();
-
-        private void AppendOutput(object data, string output)
+        private class MailThreadLogger : BaseHtmlThreadLogger
         {
-            ((StringBuilder)data).Append(output);
+            public MailThreadLogger(MailLogger owner, Thread thread)
+                : base(owner, thread)
+            {
+            }
+
+            private StringBuilder _builder = new StringBuilder();
+
+            protected override void AppendOutput(string output)
+            {
+                _builder.Append(output);
+            }
+
+            public StringBuilder Builder
+            {
+                get { return _builder; }
+            }
         }
 
         #endregion
 
         #region protected members
 
-        protected override KeyValuePair<object, BaseHtmlLogger.AppendOutputDelegate> CreateOutput(BuildThread buildThread)
+        protected override ThreadLogger CreateLogger(Thread thread)
         {
-            StringBuilder builder = new StringBuilder();
-            KeyValuePair<object, BaseHtmlLogger.AppendOutputDelegate> result = new KeyValuePair<object, AppendOutputDelegate>(builder, AppendOutput);
-            lock (_buildersSyncRoot)
-            {
-                _builders.Add(builder);
-            }
-            return result;
+            return new MailThreadLogger(this, thread);
         }
 
         #endregion
@@ -77,16 +83,16 @@ namespace Blib.Loggers
 
             lock (SyncRoot)
             {
-                foreach (var output in Outputs)
+                foreach (MailThreadLogger logger in GetLoggers())
                 {
-                    StringBuilder text = (StringBuilder)output.Value.Key;
-                    if (output.Key == RunnerThread)
+                    StringBuilder text = ((MailThreadLogger)logger).Builder;
+                    if (logger.Thread == RunnerThread)
                     {
                         mainOutput.Append(text);
                     }
                     else
                     {
-                        ZipEntry zipEntry = new ZipEntry(output.Key.Name + (UseHtml ? ".html" : ".log"));
+                        ZipEntry zipEntry = new ZipEntry(logger.Thread.Name + (UseHtml ? ".html" : ".log"));
                         zipStream.PutNextEntry(zipEntry);
 
                         byte[] buffer = Encoding.UTF8.GetBytes(text.ToString());

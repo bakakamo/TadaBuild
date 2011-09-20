@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -43,6 +43,7 @@ namespace Blib
         private List<BuildThread> _threads = new List<BuildThread>();
         private object _threadsSyncRoot = new object();
         private int _sleepingThreadsCount;
+        private bool _isRunning;
         private bool _finished;
         private bool _initialized;
         private DateTime _start = DateTime.Now;
@@ -149,6 +150,8 @@ namespace Blib
                 return;
             }
 
+            ThreadFailed = false;
+
             // start the the loggers, to make sure we get some feedback
             foreach (var loggerInfo in _options.Loggers)
             {
@@ -241,11 +244,30 @@ namespace Blib
 
         #endregion
 
+        #region protected members
+
+        protected virtual void Sleep()
+        {
+            Thread.Sleep(1000);
+        }
+
+        #endregion
+
         #region internal members
 
         internal bool Finished
         {
             get { return _finished; }
+        }
+
+        internal bool ThreadFailed { get; set; }
+
+        internal void CheckThreadFailed()
+        {
+            if (ThreadFailed)
+            {
+                throw new FailedBuiledException("Stopping because another thread has failed!");
+            }
         }
 
         internal void Sleep(BuildThread buildThread, bool firstSleep)
@@ -360,15 +382,6 @@ namespace Blib
 
         #endregion
 
-        #region protected members
-
-        protected virtual void Sleep()
-        {
-            Thread.Sleep(1000);
-        }
-
-        #endregion
-
         #region public members
 
         public static Runner Current;
@@ -403,6 +416,9 @@ namespace Blib
         {
             bool success = true;
 
+            _isRunning = true;
+
+            Log(LogLevel.Info, string.Format("Blib {0}", Assembly.GetExecutingAssembly().GetName().Version));
             Log(LogLevel.Info, string.Format("Starting the build at {0}...", _start));
 
             try
@@ -481,9 +497,16 @@ namespace Blib
                 Log(LogLevel.Info, string.Format("Finishing the build at {0}, total time: {1}...", end, end - _start));
 
                 Finish(success);
+
+                _isRunning = false;
             }
 
             return 0;
+        }
+
+        public bool IsRunning
+        {
+            get { return _isRunning; }
         }
 
         public void AddLogger(Logger logger)

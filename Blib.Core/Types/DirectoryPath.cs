@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -28,6 +28,15 @@ namespace Blib.Types
             Path = path;
         }
 
+        #region protected members
+
+        protected override void FindPaths()
+        {
+            // nothing here
+        }
+
+        #endregion
+
         public string Path { get; set; }
 
         public override string Name
@@ -44,6 +53,11 @@ namespace Blib.Types
         public bool Exists
         {
             get { return System.IO.Directory.Exists(FullName); }
+        }
+
+        public override bool IsEmpty
+        {
+            get { return !Exists; }
         }
 
         public override bool HasSingleItem

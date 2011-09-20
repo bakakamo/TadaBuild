@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -21,12 +21,26 @@ using System.Threading;
 
 namespace Blib.Loggers
 {
-    public abstract class BaseHtmlLogger : Logger
+    public abstract class BaseHtmlLogger : MultithreadLogger
     {
         public BaseHtmlLogger()
         {
             UseHtml = true;
-            _runnerThread = Thread.CurrentThread;
+        }
+
+        #region public members
+
+        public bool UseHtml { get; set; }
+
+        #endregion
+    }
+
+    public abstract class BaseHtmlThreadLogger : ThreadLogger
+    {
+        public BaseHtmlThreadLogger(BaseHtmlLogger owner, Thread thread)
+            : base(thread)
+        {
+            _owner = owner;
         }
 
         #region nested types
@@ -45,42 +59,14 @@ namespace Blib.Loggers
 
         #endregion
 
+        #region private fields
+
+        private BaseHtmlLogger _owner;
+        private Stack<ElementInfo> _elements = new Stack<ElementInfo>();
+
+        #endregion
+
         #region private members
-
-        private Thread _runnerThread;
-        private Dictionary<Thread, KeyValuePair<object, AppendOutputDelegate>> _outputs = new Dictionary<Thread, KeyValuePair<object, AppendOutputDelegate>>();
-        private Dictionary<Thread, Stack<ElementInfo>> _elements = new Dictionary<Thread, Stack<ElementInfo>>();
-        private object _syncRoot = new object();
-
-        private void GetOutputAndElements(out KeyValuePair<object, AppendOutputDelegate> output, out Stack<ElementInfo> elements)
-        {
-            Thread thread = Thread.CurrentThread;
-
-            lock (_syncRoot)
-            {
-                if (_outputs.TryGetValue(thread, out output))
-                {
-                    _elements.TryGetValue(thread, out elements);
-                }
-                else
-                {
-                    CreateOutput(null, thread, out output, out elements);
-                }
-            }
-        }
-
-        private Stack<ElementInfo> CreateOutput(BuildThread buildThread, Thread thread, out KeyValuePair<object, AppendOutputDelegate> output, out Stack<ElementInfo> elements)
-        {
-            output = CreateOutput(buildThread);
-            _outputs[thread] = output;
-            elements = new Stack<ElementInfo>();
-            _elements[thread] = elements;
-            if (UseHtml)
-            {
-                output.Value(output.Key, "<style>tr { border: solid 1px blue; background-color: #BBE4EC; }</style>");
-            }
-            return elements;
-        }
 
         private static string NewLinesToBR(string message)
         {
@@ -91,57 +77,45 @@ namespace Blib.Loggers
 
         #region protected members
 
-        protected delegate void AppendOutputDelegate(object data, string output);
+        protected abstract void AppendOutput(string output);
 
-        protected abstract KeyValuePair<object, AppendOutputDelegate> CreateOutput(BuildThread thread);
-
-        protected Dictionary<Thread, KeyValuePair<object, AppendOutputDelegate>> Outputs
+        protected internal override void Start()
         {
-            get { return _outputs; }
-        }
-
-        protected object SyncRoot
-        {
-            get { return _syncRoot; }
-        }
-
-        protected Thread RunnerThread
-        {
-            get { return _runnerThread; }
-        }
-
-        #endregion
-
-        #region public members
-
-        public bool UseHtml { get; set; }
-
-        public override void Log(LogLevel level, string message)
-        {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            if (!UseHtml)
+            if (_owner.UseHtml)
             {
-                if (elements.Count > 0)
-                {
-                    ElementInfo element = elements.Peek();
-                    if (element.Element is Task)
-                    {
-                        output.Value(output.Key, string.Format("[{0}] ", element.Element.Name));
-                    }
-                }
-                output.Value(output.Key, message + Environment.NewLine);
+                AppendOutput("<style>tr { border: solid 1px blue; background-color: #BBE4EC; }</style>");
+                AppendOutput(string.Format("<div style=\"border:solid 1px;font-weight:bold;background:black;color:white;\">Starting thread \"{0}\"...</div>" + Environment.NewLine, Thread.Name));
             }
             else
             {
-                if (elements.Count > 0)
+                AppendOutput("<Starting thread \"" + Thread.Name + "\">" + Environment.NewLine);
+            }
+        }
+        
+        #endregion
+
+        public override void Log(LogLevel level, string message)
+        {
+            if (!_owner.UseHtml)
+            {
+                if (_elements.Count > 0)
                 {
-                    ElementInfo element = elements.Peek();
+                    ElementInfo element = _elements.Peek();
+                    if (element.Element is Task)
+                    {
+                        AppendOutput(string.Format("[{0}] ", element.Element.Name));
+                    }
+                }
+                AppendOutput(message + Environment.NewLine);
+            }
+            else
+            {
+                if (_elements.Count > 0)
+                {
+                    ElementInfo element = _elements.Peek();
                     if (element.Element is Task && !element.Initialized)
                     {
-                        output.Value(output.Key, string.Format("<table width='100%'><tr><td>{0}</td><td>{1}</td><td>" + Environment.NewLine, DateTime.Now.ToLongTimeString(), element.Element.Name));
+                        AppendOutput(string.Format("<table width='100%'><tr><td>{0}</td><td>{1}</td><td>" + Environment.NewLine, DateTime.Now.ToLongTimeString(), element.Element.Name));
                         element.Initialized = true;
                     }
                 }
@@ -151,142 +125,88 @@ namespace Blib.Loggers
                     switch (level)
                     {
                         case LogLevel.Error:
-                            output.Value(output.Key, "<font color=\"red\">");
+                            AppendOutput("<font color=\"red\">");
                             break;
                         case LogLevel.Warning:
-                            output.Value(output.Key, "<font color=\"orange\">");
+                            AppendOutput("<font color=\"orange\">");
                             break;
                     }
-                    output.Value(output.Key, NewLinesToBR(message.Replace("<", "&lt;")));
+                    AppendOutput(NewLinesToBR(message.Replace("<", "&lt;")));
                     if (level == LogLevel.Error || level == LogLevel.Warning)
                     {
-                        output.Value(output.Key, "</font>");
+                        AppendOutput("</font>");
                     }
-                    output.Value(output.Key, "<br />" + Environment.NewLine);
+                    AppendOutput("<br />" + Environment.NewLine);
                 }
             }
         }
 
         public override void BeginConfiguration(Configuration configuration)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            if (UseHtml)
+            if (_owner.UseHtml)
             {
-                output.Value(output.Key, string.Format("<div style=\"border:solid 1px;font-weight:bold;\">{1} Using configuration {0}</div>" + Environment.NewLine, configuration.Name, DateTime.Now.ToLongTimeString()));
+                AppendOutput(string.Format("<div style=\"border:solid 1px;font-weight:bold;\">{1} Using configuration {0}</div>" + Environment.NewLine, configuration.Name, DateTime.Now.ToLongTimeString()));
             }
             else
             {
-                output.Value(output.Key, "[Using configuration " + configuration.Name + "]" + Environment.NewLine);
+                AppendOutput("[Using configuration " + configuration.Name + "]" + Environment.NewLine);
             }
-            elements.Push(new ElementInfo(configuration, true));
+            _elements.Push(new ElementInfo(configuration, true));
         }
 
         public override void EndConfiguration(Configuration configuration)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            elements.Pop();
+            _elements.Pop();
 
             base.EndConfiguration(configuration);
         }
 
         public override void BeginTarget(Target target)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            if (UseHtml)
+            if (_owner.UseHtml)
             {
-                output.Value(output.Key, string.Format("<div style=\"border:solid 1px;\"><div style=\"font-weight:bold\">{1} &lt;{0}&gt;</div><div style=\"margin-left:10px\">" + Environment.NewLine, target.Name, DateTime.Now.ToLongTimeString()));
+                AppendOutput(string.Format("<div style=\"border:solid 1px;\"><div style=\"font-weight:bold\">{1} &lt;{0}&gt;</div><div style=\"margin-left:10px\">" + Environment.NewLine, target.Name, DateTime.Now.ToLongTimeString()));
             }
             else
             {
-                output.Value(output.Key, '<' + target.Name + '>' + Environment.NewLine);
+                AppendOutput('<' + target.Name + '>' + Environment.NewLine);
             }
-            elements.Push(new ElementInfo(target, true));
+            _elements.Push(new ElementInfo(target, true));
         }
 
         public override void EndTarget(Target target)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            elements.Pop();
-            if (UseHtml)
+            _elements.Pop();
+            if (_owner.UseHtml)
             {
-                output.Value(output.Key, "</div></div>" + Environment.NewLine);
+                AppendOutput("</div></div>" + Environment.NewLine);
             }
         }
 
         public override void BeginTask(Task task)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            elements.Push(new ElementInfo(task, false));
+            _elements.Push(new ElementInfo(task, false));
         }
 
         public override void EndTask(Task task)
         {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-            GetOutputAndElements(out output, out elements);
-
-            ElementInfo info = elements.Pop();
-            if (info.Initialized && UseHtml)
+            ElementInfo info = _elements.Pop();
+            if (info.Initialized && _owner.UseHtml)
             {
-                output.Value(output.Key, "</td></tr></table>" + Environment.NewLine);
-            }
-        }
-
-        public override void BeginThread(BuildThread buildThread)
-        {
-            KeyValuePair<object, AppendOutputDelegate> output;
-            Stack<ElementInfo> elements;
-
-            Thread thread = Thread.CurrentThread;
-
-            lock (_syncRoot)
-            {
-                CreateOutput(buildThread, thread, out output, out elements);
-            }
-
-            if (UseHtml)
-            {
-                output.Value(output.Key, string.Format("<div style=\"border:solid 1px;font-weight:bold;background:black;color:white;\">Starting thread \"{0}\"...</div>" + Environment.NewLine, buildThread.Name));
-            }
-            else
-            {
-                output.Value(output.Key, "<Starting thread \"" + buildThread.Name + "\">" + Environment.NewLine);
+                AppendOutput("</td></tr></table>" + Environment.NewLine);
             }
         }
 
         public override void Finish(bool success)
         {
-            lock (_syncRoot)
+            if (_owner.UseHtml)
             {
-                foreach (var thread in _outputs)
+                if (Thread != _owner.RunnerThread)
                 {
-                    if (UseHtml)
-                    {
-                        if (thread.Key != _runnerThread)
-                        {
-                            thread.Value.Value(thread.Value.Key, "</div>" + Environment.NewLine);
-                        }
-                        thread.Value.Value(thread.Value.Key, "<br/><br/>" + Environment.NewLine);
-                    }
+                    AppendOutput("</div>" + Environment.NewLine);
                 }
+                AppendOutput("<br/><br/>" + Environment.NewLine);
             }
         }
-
-        #endregion
     }
 }

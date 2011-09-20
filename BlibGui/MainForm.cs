@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -25,6 +25,7 @@ using Blib;
 using System.Threading;
 using Blib.Loggers;
 using System.Reflection;
+using Blib.Tools;
 
 namespace BlibGui
 {
@@ -33,46 +34,105 @@ namespace BlibGui
         public MainForm(string[] args)
         {
             InitializeComponent();
-            _mainBrowser = AddBrowser("Runner");
+            _mainTreeView = AddTreeView("Runner");
             _args = args;
         }
 
         #region nested types
 
-        private delegate WebBrowser AddBrowserDelegate(string name);
+        private delegate TreeView AddTreeViewDelegate(string name);
 
-        private class GuiLogger : BaseHtmlLogger
+        private class GuiLogger : MultithreadLogger
         {
             public GuiLogger(MainForm owner)
             {
                 _owner = owner;
             }
 
+            #region nested types
+
+            private class GuiThreadLogger : ThreadLogger
+            {
+                public GuiThreadLogger(GuiLogger owner, Thread thread)
+                    : base(thread)
+                {
+                    _owner = owner;
+                    if (Thread.CurrentThread == _owner.RunnerThread)
+                    {
+                        _treeView = _owner._owner._mainTreeView;
+                    }
+                    else
+                    {
+                        _treeView = (TreeView)_owner._owner.Invoke(new AddTreeViewDelegate(_owner._owner.AddTreeView), thread != null ? thread.Name : string.Format("Unknown thread: {0}", Thread.CurrentThread.Name));
+                    }
+                }
+
+                private GuiLogger _owner;
+                private TreeView _treeView;
+
+                public override void Log(LogLevel level, string message)
+                {
+                    if (_treeView.InvokeRequired)
+                    {
+                        _treeView.Invoke(new TwoParamDelegate<LogLevel, string>(Log), level, message);
+                        return;
+                    }
+
+                    _treeView.Nodes.Add("Log: " + level + " " + message);
+                }
+
+                public override void BeginConfiguration(Configuration configuration)
+                {
+                    if (_treeView.InvokeRequired)
+                    {
+                        _treeView.Invoke(new OneParamDelegate<Configuration>(BeginConfiguration), configuration);
+                        return;
+                    }
+
+                    _treeView.Nodes.Add("Configuration: " + configuration.Name);
+                }
+
+                public override void BeginTarget(Target target)
+                {
+                    if (_treeView.InvokeRequired)
+                    {
+                        _treeView.Invoke(new OneParamDelegate<Target>(BeginTarget), target);
+                        return;
+                    }
+
+                    _treeView.Nodes.Add("Target: " + target.Name);
+                }
+
+                public override void BeginTask(Task task)
+                {
+                    if (_treeView.InvokeRequired)
+                    {
+                        _treeView.Invoke(new OneParamDelegate<Task>(BeginTask), task);
+                        return;
+                    }
+
+                    _treeView.Nodes.Add("Task: " + task.Name);
+                }
+
+                public override void Finish(bool success)
+                {
+                    if (_treeView.InvokeRequired)
+                    {
+                        _treeView.Invoke(new OneParamDelegate<bool>(Finish), success);
+                        return;
+                    }
+
+                    _treeView.Nodes.Add("Finished");
+                }
+            }
+
+            #endregion
+
             private MainForm _owner;
 
-            private void AppendOutput(object data, string output)
+            protected override ThreadLogger CreateLogger(Thread thread)
             {
-                ((WebBrowser)data).Invoke(new AppendOutputDelegate(DoAppendOutput), data, output);
-            }
-
-            private void DoAppendOutput(object data, string output)
-            {
-                ((WebBrowser)data).Document.Write(output);
-            }
-
-            protected override KeyValuePair<object, BaseHtmlLogger.AppendOutputDelegate> CreateOutput(BuildThread buildThread)
-            {
-                WebBrowser browser;
-                if (Thread.CurrentThread == _owner._runnerThread)
-                {
-                    browser = _owner._mainBrowser;
-                }
-                else
-                {
-                    browser = (WebBrowser)_owner.Invoke(new AddBrowserDelegate(_owner.AddBrowser), buildThread != null ? buildThread.Name : string.Format("Unknown thread: {0}", Thread.CurrentThread.Name));
-                }
-                KeyValuePair<object, BaseHtmlLogger.AppendOutputDelegate> result = new KeyValuePair<object, AppendOutputDelegate>(browser, AppendOutput);
-                return result;
+                return new GuiThreadLogger(this, thread);
             }
         }
 
@@ -97,7 +157,7 @@ namespace BlibGui
         private Runner _runner;
         private Thread _runnerThread;
         private bool _newRunnerNeeded;
-        private WebBrowser _mainBrowser;
+        private TreeView _mainTreeView;
         private Dictionary<string, Control> _projectOptions = new Dictionary<string, Control>();
         private Dictionary<string, object> _projectOptionsValues = new Dictionary<string, object>();
         private Dictionary<string, Control> _configurationOptions = new Dictionary<string, Control>();
@@ -142,7 +202,7 @@ namespace BlibGui
 
         private void FillOptions(object item, Dictionary<string, Control> options, Dictionary<string, object> values, TableLayoutPanel panel)
         {
-            tlpTargets.SuspendLayout();
+            tlpOptions.SuspendLayout();
             try
             {
                 panel.SuspendLayout();
@@ -255,23 +315,18 @@ namespace BlibGui
             }
             finally
             {
-                tlpTargets.ResumeLayout(true);
+                tlpOptions.ResumeLayout(true);
             }
         }
 
-        private WebBrowser AddBrowser(string name)
+        private TreeView AddTreeView(string name)
         {
             TabPage tabPage = new TabPage(name);
             tcTabs.TabPages.Add(tabPage);
-            WebBrowser browser = new WebBrowser();
-            browser.Dock = DockStyle.Fill;
-            browser.Parent = tabPage;
-            browser.Navigate("about:blank");
-            while (browser.IsBusy)
-            {
-                Application.DoEvents();
-            }
-            return browser;
+            TreeView treeView = new TreeView();
+            treeView.Dock = DockStyle.Fill;
+            treeView.Parent = tabPage;
+            return treeView;
         }
 
         private void FillConfigurations()
@@ -328,7 +383,7 @@ namespace BlibGui
             }
         }
 
-        private void AddTargets(TreeNodeCollection nodes, TargetGroup targetGroup)
+        private void AddTargets(TreeNodeCollection nodes, TargetGroup targetGroup, bool parentsEnabled = true)
         {
             foreach (Target target in targetGroup.Targets)
             {
@@ -337,28 +392,92 @@ namespace BlibGui
                 bool enabled;
                 if (!_checkedTargets.TryGetValue(node.FullPath, out enabled))
                 {
-                    enabled = target.Enabled;
+                    enabled = target.Enabled && parentsEnabled;
                 }
-                node.Checked = enabled;
+                SetNodeChecked(node, enabled);
                 if (target is TargetGroup)
                 {
-                    AddTargets(node.Nodes, (TargetGroup)target);
+                    AddTargets(node.Nodes, (TargetGroup)target, enabled);
                 }
             }
         }
 
-        private void btnCheckAll_Click(object sender, EventArgs e)
+        private void SetNodeChecked(TreeNode node, bool enabled)
         {
-            SetChecked(tvTargets.Nodes, true);
+            SetNodeState(node, enabled ? TreeNodeState.Checked : TreeNodeState.Unchecked);
+        }
+
+        private void SetNodeState(TreeNode node, TreeNodeState state)
+        {
+            node.StateImageIndex = (int)state;
+            if (state < TreeNodeState.Indeterminate)
+            {
+                SetChecked(node.Nodes, state != TreeNodeState.Unchecked);
+            }
+            if (node.Parent != null)
+            {
+                SetNodeState(node.Parent, GetState(node.Parent.Nodes));
+            }
+        }
+
+        private bool IsNodeChecked(TreeNode node)
+        {
+            return node.StateImageIndex != (int)TreeNodeState.Unchecked;
+        }
+
+        private TreeNodeState GetState(TreeNodeCollection nodes)
+        {
+            if (nodes.Count == 0)
+            {
+                return TreeNodeState.Checked;
+            }
+
+            bool seenChecked = false, seenUnchecked = false;
+
+            foreach (TreeNode node in nodes)
+            {
+                switch ((TreeNodeState)node.StateImageIndex)
+                {
+                    case TreeNodeState.Unchecked:
+                        if (seenChecked)
+                        {
+                            return TreeNodeState.Indeterminate;
+                        }
+                        seenUnchecked = true;
+                        break;
+                    case TreeNodeState.Checked:
+                        if (seenUnchecked)
+                        {
+                            return TreeNodeState.Indeterminate;
+                        }
+                        seenChecked = true;
+                        break;
+                    default:
+                        return TreeNodeState.Indeterminate;
+                }
+            }
+
+            if (seenChecked)
+            {
+                return TreeNodeState.Checked;
+            }
+            return TreeNodeState.Unchecked;
         }
 
         private void SetChecked(TreeNodeCollection nodes, bool value)
         {
             foreach (TreeNode node in nodes)
             {
-                node.Checked = value;
+                //node.Checked = value;
+                node.StateImageIndex = (int)(value ? TreeNodeState.Checked : TreeNodeState.Unchecked);
+
                 SetChecked(node.Nodes, value);
             }
+        }
+
+        private void btnCheckAll_Click(object sender, EventArgs e)
+        {
+            SetChecked(tvTargets.Nodes, true);
         }
 
         private void btnUncheckAll_Click(object sender, EventArgs e)
@@ -373,6 +492,7 @@ namespace BlibGui
                 _checkedTargets.Clear();
                 EnableTargets(tvTargets.Nodes);
                 EnableControls(tpOptions.Controls, false);
+                btnRun.Enabled = false;
                 Configuration configuration = (Configuration)cbConfigurations.SelectedItem;
 
                 SetOptions(_projectOptions, _projectOptionsValues, _options.ProjectProperties);
@@ -386,6 +506,7 @@ namespace BlibGui
                 _runner.Run(configuration);
 
                 EnableControls(tpOptions.Controls, true);
+                btnRun.Enabled = true;
 
                 if (tcTabs.SelectedIndex == 0)
                 {
@@ -448,8 +569,8 @@ namespace BlibGui
         {
             foreach (TreeNode node in nodes)
             {
-                _checkedTargets[node.FullPath] = node.Checked;
-                ((Target)node.Tag).Enabled = node.Checked;
+                _checkedTargets[node.FullPath] = IsNodeChecked(node);
+                ((Target)node.Tag).Enabled = IsNodeChecked(node);
                 EnableTargets(node.Nodes);
             }
         }
@@ -467,26 +588,6 @@ namespace BlibGui
             }
         }
 
-        private void tvTargets_AfterCheck(object sender, TreeViewEventArgs e)
-        {
-            if (e.Action != TreeViewAction.Unknown)
-            {
-                foreach (TreeNode node in e.Node.Nodes)
-                {
-                    node.Checked = e.Node.Checked;
-                }
-                if (e.Node.Checked)
-                {
-                    TreeNode parentNode = e.Node.Parent;
-                    while (parentNode != null)
-                    {
-                        parentNode.Checked = true;
-                        parentNode = parentNode.Parent;
-                    }
-                }
-            }
-        }
-
         private void tcTabs_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (tcTabs.SelectedIndex == 0 && _newRunnerNeeded)
@@ -495,5 +596,28 @@ namespace BlibGui
                 CreateRunner();
             }
         }
+
+        private void tvTargets_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            if (!_runner.IsRunning)
+            {
+                TreeViewHitTestInfo hitTestInfo = tvTargets.HitTest(e.Location);
+                if (hitTestInfo.Location == TreeViewHitTestLocations.StateImage)
+                {
+                    SetNodeChecked(e.Node, !IsNodeChecked(e.Node));
+                }
+            }
+        }
+    }
+
+    internal enum TreeNodeState
+    {
+        Unchecked,
+        Checked,
+        Indeterminate,
+        Running,
+        Error,
+        Warning,
+        Success
     }
 }

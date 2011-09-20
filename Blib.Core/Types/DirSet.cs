@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -18,49 +18,27 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
+using Blib.Tasks.IO;
 
 namespace Blib.Types
 {
-    public class DirSet : Element, IEnumerable<string>
+    public class DirSet : BaseDirSet
     {
-        #region private members
+        #region protected members
 
-        private static string RegexDirSeparator = Regex.Escape(System.IO.Path.DirectorySeparatorChar.ToString());
-
-        private Dictionary<string, byte> _dirs;
-        private List<KeyValuePair<string, bool>> _items = new List<KeyValuePair<string, bool>>();
-
-        private static readonly Regex PatternRegex = new Regex(@"\*\*" + RegexDirSeparator + @"|\*|[^\*]+");
-
-        private void FindDirs()
+        protected override void IncludePaths(PathSetPattern pattern)
         {
-            if (_dirs != null)
-            {
-                return;
-            }
-
-            _dirs = new Dictionary<string, byte>(StringComparer.CurrentCultureIgnoreCase);
-            foreach (var item in _items)
-            {
-                if (item.Value)
-                {
-                    IncludeDirs(item.Key);
-                }
-                else
-                {
-                    ExcludeDirs(item.Key);
-                }
-            }
-        }
-
-        private void IncludeDirs(string pattern)
-        {
-            pattern = pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
-            string fullPattern = GetFullPath(pattern);
+            string patternStr = pattern.Pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
+            string fullPattern = GetFullPath(patternStr);
             int wildcardIndex = fullPattern.IndexOf('*');
+            bool foundSomething = false;
             if (wildcardIndex < 0)
             {
-                _dirs[fullPattern] = 1;
+                if (System.IO.Directory.Exists(fullPattern))
+                {
+                    foundSomething = true;
+                    _paths[fullPattern] = 1;
+                }
             }
             else
             {
@@ -70,7 +48,13 @@ namespace Blib.Types
                     rootPath = System.IO.Path.GetDirectoryName(rootPath);
                 }
 
-                string name = pattern;
+                // check for mistakes, for example by doing Include("/*")
+                if (IO.IsFileSystemRoot(rootPath))
+                {
+                    throw new BuildException("Including directories in a DirSet using the root of the filesystem as root!");
+                }
+
+                string name = patternStr;
                 if (name.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()))
                 {
                     name = name.Remove(name.Length - 1);
@@ -81,85 +65,36 @@ namespace Blib.Types
                 {
                     if (regex.IsMatch(path))
                     {
-                        _dirs[path] = 1;
+                        foundSomething = true;
+                        _paths[path] = 1;
                     }
                 }
             }
-        }
 
-        private void ExcludeDirs(string pattern)
-        {
-            pattern = pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
-            Regex regex = GetRegex(GetFullPath(pattern));
-            List<string> remove = new List<string>();
-            foreach (var path in _dirs.Keys)
+            if (!foundSomething && !IgnoreEmptyPatterns && !pattern.IgnoreEmpty)
             {
-                if (regex.IsMatch(path))
-                {
-                    remove.Add(path);
-                }
+                throw new BuildException(string.Format("Did not find anything to include with pattern \"{0}\"!", patternStr));
             }
-            foreach (var path in remove)
-            {
-                _dirs.Remove(path);
-            }
-        }
-
-        private static Regex GetRegex(string pattern)
-        {
-            StringBuilder regexPattern = new StringBuilder();
-            if (System.IO.Path.IsPathRooted(pattern))
-            {
-                regexPattern.Append("^");
-            }
-            else
-            {
-                regexPattern.Append(RegexDirSeparator);
-            }
-            MatchCollection matches = PatternRegex.Matches(pattern);
-            foreach (Match match in matches)
-            {
-                switch (match.Value)
-                {
-                    case "**\\":
-                    case "**/":
-                        regexPattern.Append("(.*" + RegexDirSeparator + ")?");
-                        break;
-                    case "*":
-                        regexPattern.Append("[^" + RegexDirSeparator + "]*");
-                        break;
-                    default:
-                        regexPattern.Append(Regex.Escape(match.Value));
-                        break;
-                }
-            }
-            regexPattern.Append("($|").Append(RegexDirSeparator).Append(')');
-
-            Regex regex = new Regex(regexPattern.ToString(), RegexOptions.IgnoreCase);
-            return regex;
         }
 
         #endregion
 
         #region public members
 
-        public void Include(string pattern)
+        public void Include(string pattern, bool ignoreEmpty = false)
         {
-            _items.Add(new KeyValuePair<string, bool>(pattern, true));
+            _items.Add(new PathSetPattern(pattern, true, ignoreEmpty));
         }
 
-        public void Exclude(string pattern)
+        public void Exclude(string pattern, bool ignoreEmpty = false)
         {
-            _items.Add(new KeyValuePair<string, bool>(pattern, false));
+            _items.Add(new PathSetPattern(pattern, false, ignoreEmpty));
         }
 
-        public bool IsEmpty
+        public bool IgnoreEmptyPatterns
         {
-            get
-            {
-                FindDirs();
-                return _dirs.Count == 0;
-            }
+            get;
+            set;
         }
 
         public static implicit operator DirSet(string path)
@@ -167,25 +102,6 @@ namespace Blib.Types
             DirSet result = new DirSet();
             result.Include(path);
             return result;
-        }
-
-        #endregion
-
-        #region IEnumerable<string> Members
-
-        public IEnumerator<string> GetEnumerator()
-        {
-            FindDirs();
-            return _dirs.Keys.GetEnumerator();
-        }
-
-        #endregion
-
-        #region IEnumerable Members
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
         }
 
         #endregion

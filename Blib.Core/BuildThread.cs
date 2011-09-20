@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -76,12 +76,14 @@ namespace Blib
                                 element.Execute();
                             }
 
+                            _runner.CheckThreadFailed();
                         } while (element != null);
 
                         _runner.Sleep(this, !notified);
                         _wakeUpEvent.WaitOne();
                         _wakeUpEvent.Reset();
                         _runner.WakeUp(this);
+                        _runner.CheckThreadFailed();
                     }
                 }
                 catch (FailedBuiledException)
@@ -98,6 +100,8 @@ namespace Blib
                 {
                     if (!_success)
                     {
+                        _runner.ThreadFailed = true;
+
                         ExecutableElement element = null;
                         do
                         {

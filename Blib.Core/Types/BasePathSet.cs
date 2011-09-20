@@ -1,4 +1,4 @@
-﻿// Copyright 2010 Bastien Hofmann <kamo@cfagn.net>
+﻿// Copyright 2010, 2011 Bastien Hofmann <kamo@cfagn.net>
 //
 // This file is part of Blib.
 //
@@ -17,11 +17,115 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Blib.Types
 {
+    public class PathSetPattern
+    {
+        public PathSetPattern(string pattern, bool include, bool ignoreEmpty)
+        {
+            Pattern = pattern;
+            Include = include;
+            IgnoreEmpty = ignoreEmpty;
+        }
+
+        public string Pattern;
+        public bool Include;
+        public bool IgnoreEmpty;
+    }
+
     public abstract class BasePathSet : Element, IEnumerable<string>
     {
+        #region protected members
+
+        protected List<PathSetPattern> _items = new List<PathSetPattern>();
+        protected Dictionary<string, byte> _paths;
+
+        protected virtual void FindPaths()
+        {
+            if (_paths != null)
+            {
+                return;
+            }
+
+            _paths = new Dictionary<string, byte>(StringComparer.CurrentCultureIgnoreCase);
+            foreach (var item in _items)
+            {
+                if (item.Include)
+                {
+                    IncludePaths(item);
+                }
+                else
+                {
+                    ExcludePaths(item);
+                }
+            }
+        }
+
+        protected static string RegexDirSeparator = Regex.Escape(System.IO.Path.DirectorySeparatorChar.ToString());
+
+        protected static readonly Regex PatternRegex = new Regex(@"\*\*" + RegexDirSeparator + @"|\*|[^\*]+");
+
+        protected static Regex GetRegex(string pattern)
+        {
+            StringBuilder regexPattern = new StringBuilder();
+            if (System.IO.Path.IsPathRooted(pattern))
+            {
+                regexPattern.Append("^");
+            }
+            else
+            {
+                regexPattern.Append(RegexDirSeparator);
+            }
+            MatchCollection matches = PatternRegex.Matches(pattern);
+            foreach (Match match in matches)
+            {
+                switch (match.Value)
+                {
+                    case "**\\":
+                    case "**/":
+                        regexPattern.Append("(.*" + RegexDirSeparator + ")?");
+                        break;
+                    case "*":
+                        regexPattern.Append("[^" + RegexDirSeparator + "]*");
+                        break;
+                    default:
+                        regexPattern.Append(Regex.Escape(match.Value));
+                        break;
+                }
+            }
+            regexPattern.Append("($|").Append(RegexDirSeparator).Append(')');
+
+            Regex regex = new Regex(regexPattern.ToString(), RegexOptions.IgnoreCase);
+            return regex;
+        }
+
+        protected virtual void IncludePaths(PathSetPattern pattern)
+        {
+            // nothing here
+        }
+
+        protected virtual void ExcludePaths(PathSetPattern pattern)
+        {
+            string patternStr = pattern.Pattern.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
+            Regex regex = GetRegex(GetFullPath(patternStr));
+            List<string> remove = new List<string>();
+            foreach (var path in _paths.Keys)
+            {
+                if (regex.IsMatch(path))
+                {
+                    remove.Add(path);
+                }
+            }
+            foreach (var path in remove)
+            {
+                _paths.Remove(path);
+            }
+        }
+
+        #endregion
+
         #region public members
 
         public DirectoryPath Basedir
@@ -30,13 +134,32 @@ namespace Blib.Types
             set { base.InternalBasedir = value; }
         }
 
-        public abstract bool HasSingleItem { get; }
+        public virtual bool HasSingleItem
+        {
+            get
+            {
+                return _items.Count == 1 && _items[0].Include && !_items[0].Pattern.Contains("*");
+            }
+        }
+
+        public virtual bool IsEmpty
+        {
+            get
+            {
+                FindPaths();
+                return _paths.Count == 0;
+            }
+        }
 
         #endregion
 
         #region IEnumerable<string> Members
 
-        public abstract IEnumerator<string> GetEnumerator();
+        public virtual IEnumerator<string> GetEnumerator()
+        {
+            FindPaths();
+            return _paths.Keys.GetEnumerator();
+        }
 
         #endregion
 
