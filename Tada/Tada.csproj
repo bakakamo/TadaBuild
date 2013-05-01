@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{57CBDD30-4B98-4E0E-87C0-9E034A415541}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Tada</RootNamespace>
+    <AssemblyName>Tada</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\Bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\3rdParty\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="BuildThread.cs" />
+    <Compile Include="Configuration.cs" />
+    <Compile Include="Exceptions.cs" />
+    <Compile Include="Loggers\BaseHtmlLogger.cs" />
+    <Compile Include="Loggers\ConsoleLogger.cs" />
+    <Compile Include="Loggers\Logger.cs" />
+    <Compile Include="Loggers\MailLogger.cs" />
+    <Compile Include="Options.cs" />
+    <Compile Include="Runner.cs" />
+    <Compile Include="Target.cs" />
+    <Compile Include="Element.cs" />
+    <Compile Include="Project.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Task.cs" />
+    <Compile Include="TargetGroup.cs" />
+    <Compile Include="Tasks\Cryptography\ChecksumTask.cs" />
+    <Compile Include="Tasks\DotNet\DelaySignTask.cs" />
+    <Compile Include="Tasks\DotNet\IldasmTask.cs" />
+    <Compile Include="Tasks\DotNet\MSBuildTask.cs" />
+    <Compile Include="Tasks\ExecTask.cs" />
+    <Compile Include="Tasks\BaseExecTask.cs" />
+    <Compile Include="Tasks\IO\BaseFileTransferTask.cs" />
+    <Compile Include="Tasks\IO\CopyTask.cs" />
+    <Compile Include="Tasks\IO\DeleteTask.cs" />
+    <Compile Include="Tasks\IO\IO.cs" />
+    <Compile Include="Tasks\IO\MkDirTask.cs" />
+    <Compile Include="Tasks\IO\MoveTask.cs" />
+    <Compile Include="Tasks\XmlPeekTask.cs" />
+    <Compile Include="Tasks\XmlPokeTask.cs" />
+    <Compile Include="Tools\Delegates.cs" />
+    <Compile Include="Tools\Enumerable.cs" />
+    <Compile Include="Types\BaseDirSet.cs" />
+    <Compile Include="Types\BaseFileSet.cs" />
+    <Compile Include="Types\BasePathSet.cs" />
+    <Compile Include="Types\DirectoryPath.cs" />
+    <Compile Include="Types\DirSet.cs" />
+    <Compile Include="Types\FilePath.cs" />
+    <Compile Include="Types\FileSet.cs" />
+    <Compile Include="Types\PathSet.cs" />
+    <Compile Include="Validators.cs" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
